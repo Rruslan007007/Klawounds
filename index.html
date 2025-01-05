@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robizin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #222;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            background-image: url('https://cdna.artstation.com/p/assets/images/images/013/007/240/large/louis-charavner-spacemoon.jpg?1537607100');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+        }
+
+        canvas {
+            display: block;
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        #menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        .menu-button {
+            margin: 10px;
+            padding: 15px 30px;
+            font-size: 18px;
+            color: #fff;
+            background-color: #444;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .menu-button:hover {
+            background-color: #555;
+        }
+
+        #coin-counter {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 18px;
+        }
+
+        .menu-link {
+            position: absolute;
+            bottom: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            background-color: #28a745;
+            color: white;
+            font-size: 20px;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: transform 0.3s ease-in-out;
+            display: none;
+        }
+
+        .menu-link:hover {
+            transform: scale(1.1);
+        }
+
+        /* Кнопка начать игру */
+        .start-button {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            background-color: #28a745;
+            color: white;
+            font-size: 20px;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .start-button:hover {
+            transform: scale(1.1);
+        }
+
+        /* Стиль кнопки на платформе */
+        .start-button:active {
+            transform: scale(1.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="menu">
+        <button class="menu-button" id="restart">Заново</button>
+        <button class="menu-button" id="resume">Возобновить (-Монеты)</button>
+        <a href="#" class="start-button" id="start-game">Играть</a>
+        <a href="#" class="menu-link" id="go-to-menu">Вернуться в меню</a> <!-- Кнопка "Вернуться в меню" -->
+    </div>
+
+    <div id="coin-counter">Монеты: 0</div>
+
+    <script>
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        document.body.appendChild(canvas);
+
+        // Настройки игры
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const paddle = {
+            width: canvas.width / 6,
+            height: 20,
+            x: canvas.width / 2 - canvas.width / 12,
+            y: canvas.height - 50 - 7, // Платформа поднята на 7 пикселей выше
+            dx: 15,
+            movingLeft: false,
+            movingRight: false,
+        };
+
+        const ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 24,
+            speedX: 4,
+            speedY: -4,
+        };
+
+        const brickRows = 5;
+        const brickCols = 7;
+        const brickWidth = (canvas.width - 100) / brickCols;
+        const brickHeight = 23;
+        const brickPadding = 15;
+        let bricks = [];
+        let coins = 0;
+        let brokenBricks = 0;
+
+        function resetBricks() {
+            bricks = [];
+            for (let row = 0; row < brickRows; row++) {
+                bricks[row] = [];
+                for (let col = 0; col < brickCols; col++) {
+                    bricks[row][col] = {
+                        x: col * (brickWidth + brickPadding) + 50,
+                        y: row * (brickHeight + brickPadding) + 50,
+                        destroyed: false,
+                    };
+                }
+            }
+        }
+
+        resetBricks();
+
+        function drawPaddle() {
+            ctx.fillStyle = "#0f0";
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+        }
+
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = "#f00";
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function drawBricks() {
+            bricks.forEach(row => {
+                row.forEach(brick => {
+                    if (!brick.destroyed) {
+                        ctx.fillStyle = "#00f";
+                        ctx.fillRect(brick.x, brick.y, brickWidth, brickHeight);
+                    }
+                });
+            });
+        }
+
+        function drawCoins() {
+            document.getElementById("coin-counter").textContent = `Монеты: ${coins}`;
+        }
+
+        function updatePaddle() {
+            if (paddle.movingLeft && paddle.x > 0) {
+                paddle.x -= paddle.dx;
+            }
+            if (paddle.movingRight && paddle.x + paddle.width < canvas.width) {
+                paddle.x += paddle.dx;
+            }
+        }
+
+        function updateBall() {
+            ball.x += ball.speedX;
+            ball.y += ball.speedY;
+
+            if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
+                ball.speedX *= -1;
+            }
+            if (ball.y - ball.radius < 0) {
+                ball.speedY *= -1;
+            }
+
+            if (
+                ball.x > paddle.x &&
+                ball.x < paddle.x + paddle.width &&
+                ball.y + ball.radius > paddle.y
+            ) {
+                ball.speedY *= -1;
+            }
+
+            bricks.forEach(row => {
+                row.forEach(brick => {
+                    if (
+                        !brick.destroyed &&
+                        ball.x > brick.x &&
+                        ball.x < brick.x + brickWidth &&
+                        ball.y - ball.radius < brick.y + brickHeight &&
+                        ball.y + ball.radius > brick.y
+                    ) {
+                        ball.speedY *= -1;
+                        brick.destroyed = true;
+                        coins++;
+                        brokenBricks++;
+                        drawCoins();
+                    }
+                });
+            });
+
+            if (ball.y - ball.radius > canvas.height) {
+                showMenu();
+            }
+        }
+
+        function showMenu() {
+            document.getElementById("menu").style.display = "flex";
+            document.getElementById("go-to-menu").style.display = "inline-block";
+        }
+
+        function hideMenu() {
+            document.getElementById("menu").style.display = "none";
+            document.getElementById("go-to-menu").style.display = "none";
+        }
+
+        document.getElementById("restart").addEventListener("click", () => {
+            coins = 0;
+            resetBricks();
+            resetGame();
+            hideMenu();
+        });
+
+        document.getElementById("resume").addEventListener("click", () => {
+            if (coins >= brokenBricks) {
+                coins -= brokenBricks;
+                drawCoins();
+                resetGame();
+                hideMenu();
+            }
+        });
+
+        document.getElementById("start-game").addEventListener("click", () => {
+            hideMenu();
+            gameLoop();
+        });
+
+        function resetGame() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            ball.speedX = 4 * (Math.random() > 0.5 ? 1 : -1);
+            ball.speedY = -4;
+            paddle.x = canvas.width / 2 - paddle.width / 2;
+            resetBricks();
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPaddle();
+            drawBall();
+            drawBricks();
+            drawCoins();
+            updatePaddle();
+            updateBall();
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener("keydown", event => {
+            if (event.key === "ArrowLeft" || event.key === "a") paddle.movingLeft = true;
+            if (event.key === "ArrowRight" || event.key === "d") paddle.movingRight = true;
+        });
+
+        document.addEventListener("keyup", event => {
+            if (event.key === "ArrowLeft" || event.key === "a") paddle.movingLeft = false;
+            if (event.key === "ArrowRight" || event.key === "d") paddle.movingRight = false;
+        });
+
+        // Мобильное управление
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener("touchstart", (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        document.addEventListener("touchmove", (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            let diff = touchEndX - touchStartX;
+            if (Math.abs(diff) > 5) {
+                paddle.movingLeft = diff < 0;
+                paddle.movingRight = diff > 0;
+            }
+        });
+
+        document.addEventListener("touchend", () => {
+            paddle.movingLeft = false;
+            paddle.movingRight = false;
+        });
+
+    </script>
+</body>
+</html>
+
